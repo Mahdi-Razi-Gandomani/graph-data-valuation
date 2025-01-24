@@ -26,6 +26,7 @@ from tqdm import tqdm
 import warnings
 warnings.simplefilter(action='ignore', category=Warning)
 
+
 class SGCNet(nn.Module):
     """
     Simple Graph Convolutional Network model
@@ -77,26 +78,6 @@ class SGCNet(nn.Module):
         acc = correct / input_data.val_mask.sum().item()
         # print('Validation Accuracy: {:.6f}'.format(acc))
         return acc
-
-    
-def set_masks_from_indices(data, indices_dict, device):
-    """Set train, validation, and test masks for the data"""
-    num_nodes = data.num_nodes
-    
-    train_mask = torch.zeros(num_nodes, dtype=bool).to(device)
-    train_mask[indices_dict["train"]] = 1
-
-    val_mask = torch.zeros(num_nodes, dtype=bool).to(device)
-    val_mask[indices_dict["val"]] = 1
-
-    test_mask = torch.zeros(num_nodes, dtype=bool).to(device)
-    test_mask[indices_dict["test"]] = 1
-
-    data.train_mask = train_mask
-    data.test_mask = test_mask
-    data.val_mask = val_mask
-
-    return data
 
 
 def get_subgraph_data(data, mask):
