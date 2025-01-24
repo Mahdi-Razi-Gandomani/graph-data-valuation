@@ -27,7 +27,7 @@ number of hops, random seed, number of permutations, and truncation ratios.
 
 import torch
 import torch.nn as nn
-from torch_geometric.datasets import Planetoid, Amazon, WikiCS
+from torch_geometric.datasets import Planetoid, WikiCS
 from torch_geometric.utils import k_hop_subgraph
 import numpy as np
 import pickle
@@ -41,24 +41,6 @@ from torch_geometric.nn.conv.gcn_conv import gcn_norm
 from torch_geometric.typing import Adj, OptTensor, SparseTensor
 from torch_geometric.utils import spmm
 from tqdm import tqdm
-
-dataset_params = {
-    'Computers': {
-        'num_epochs': 200,
-        'lr': 0.1,
-        'weight_decay': 5e-4
-    },
-    'Photo': {
-        'num_epochs': 200,
-        'lr': 0.01,
-        'weight_decay': 5e-4
-    },
-    'Physics': {
-        'num_epochs': 30,
-        'lr': 0.01,
-        'weight_decay': 5e-4
-    }
-}
 
 
 class SGConvNoWeight(MessagePassing):
@@ -297,26 +279,6 @@ def propagate_features(edge_index, node_features):
     L_norm = D_hat.mm(A_hat).mm(D_hat)
     return L_norm.mm(L_norm.mm(node_features))
 
-    
-def set_masks_from_indices(data, indices_dict, device):
-
-    """
-    Set train, validation, and test masks for the graph data based on provided indices.
-    """
-    
-    num_nodes = data.num_nodes
-    train_mask = torch.zeros(num_nodes, dtype=bool).to(device)
-    train_mask[indices_dict["train"]] = 1
-    val_mask = torch.zeros(num_nodes, dtype=bool).to(device)
-    val_mask[indices_dict["val"]] = 1
-    test_mask = torch.zeros(num_nodes, dtype=bool).to(device)
-    test_mask[indices_dict["test"]] = 1
-
-    data.train_mask = train_mask
-    data.test_mask = test_mask
-    data.val_mask = val_mask
-    return data
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Network")
     parser.add_argument('--dataset', default='Cora', help='Input dataset.')
@@ -359,31 +321,18 @@ if __name__ == "__main__":
     np.random.seed(seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # Load dataset
-    if dataset_name in ['Computers', 'Photo']:
-            dataset = Amazon(root='dataset/Amazon', name=args.dataset, transform=T.NormalizeFeatures())
-            config_path = f'./config/Amazon-{args.dataset}.pkl'
-    elif dataset_name == 'Physics':
-        dataset = Coauthor(root='dataset/Coauthor', name=args.dataset, transform=T.NormalizeFeatures())
-        config_path = f'./config/Coauthor-{args.dataset}.pkl'
-    elif dataset_name == 'WikiCS':
+    if dataset_name == 'WikiCS':
         dataset = WikiCS(root='dataset/' + dataset_name, transform=T.NormalizeFeatures())
     else:
         dataset = Planetoid(root='dataset/' + dataset_name, name=dataset_name, transform=T.NormalizeFeatures())
     
     data = dataset[0].to(device)
     num_classes = dataset.num_classes
-    
-    # Load train/valid/test split for non-Citation datas
-    if dataset_name in ['Computers', 'Photo','Physics']:
-        with open(config_path, 'rb') as f:
-            loaded_indices_dict = pickle.load(f)
-            data = set_masks_from_indices(data, loaded_indices_dict, device)
            
-    elif dataset_name == 'WikiCS':
+    if dataset_name == 'WikiCS':
         train_mask = data.train_mask[:, 0]
         val_mask = data.val_mask[:, 0]
-        test_mask = data.test_mask
-       
+        test_mask = data.test_mask    
     else: 
         train_mask = data.train_mask
         val_mask = data.val_mask
