@@ -390,7 +390,7 @@ if __name__ == "__main__":
         cur_labeled_node_list = [] 
         pre_performance = 0
         
-        for labeled_node in tqdm(labeled_node_list, desc=f'Permutation {i + 1}', unit='node):
+        for labeled_node in tqdm(labeled_node_list, desc=f'Permutation {i + 1}', unit='node'):
             sample_value_dict_copy = copy.deepcopy(sample_value_dict)
 
             # Process 1-hop neighbors
