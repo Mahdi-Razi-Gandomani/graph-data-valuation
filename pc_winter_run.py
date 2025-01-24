@@ -27,33 +27,20 @@ number of hops, random seed, number of permutations, and truncation ratios.
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch_geometric.datasets import Planetoid
-from torch_geometric.utils import add_self_loops, degree
-from sklearn.metrics import accuracy_score
-import random
-from torch_geometric.transforms import RootedEgoNets
+from torch_geometric.datasets import Planetoid, Amazon, WikiCS
 from torch_geometric.utils import k_hop_subgraph
-import torch_geometric
-import time
-from itertools import chain, combinations
 import numpy as np
 import pickle
-import pandas as pd
 import argparse
 import torch.nn.functional as F
-import collections
 import copy
 import torch_geometric.transforms as T
-from torch.nn.functional import cosine_similarity
-from torch_geometric.datasets import Amazon
-
-from typing import Optional
 from torch import Tensor
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.nn.conv.gcn_conv import gcn_norm
 from torch_geometric.typing import Adj, OptTensor, SparseTensor
 from torch_geometric.utils import spmm
+from tqdm import tqdm
 
 dataset_params = {
     'Computers': {
@@ -141,7 +128,6 @@ class MLP(nn.Module):
 
     def fit(self, X, y, val_X, val_y, num_iter=200, lr=0.01, weight_decay=5e-4):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
-        counter = 0
 
         for epoch in range(num_iter):
             self.train()
@@ -187,7 +173,6 @@ def generate_features_and_labels_ind(cur_hop_1_list, cur_hop_2_list, cur_labeled
     A_temp[ind_edge_index[0], ind_edge_index[1]] = 1
     
     mask = torch.zeros_like(A_temp)
-    cur_hop_1_list_torch = torch.tensor(cur_hop_1_list)
     mask[target_node, cur_hop_1_list] = 1
     mask[cur_hop_1_list, target_node] = 1
     if len(cur_hop_1_list) > 1:
@@ -291,7 +276,7 @@ def get_subgraph_data(data_edge_index, mask):
     
     # Nodes to be considered
     edge_index = data_edge_index.clone()
-    nodes = mask.nonzero().view(-1)
+    nodes = mask.nonzero().reshape(-1)
 
     # Extract the edges for these nodes
     edge_mask_src = (edge_index[0].unsqueeze(-1) == nodes.unsqueeze(0)).any(dim=-1)
@@ -374,12 +359,14 @@ if __name__ == "__main__":
     np.random.seed(seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # Load dataset
-    if args.dataset in ['Computers', 'Photo']:
+    if dataset_name in ['Computers', 'Photo']:
             dataset = Amazon(root='dataset/Amazon', name=args.dataset, transform=T.NormalizeFeatures())
             config_path = f'./config/Amazon-{args.dataset}.pkl'
-    elif args.dataset == 'Physics':
+    elif dataset_name == 'Physics':
         dataset = Coauthor(root='dataset/Coauthor', name=args.dataset, transform=T.NormalizeFeatures())
         config_path = f'./config/Coauthor-{args.dataset}.pkl'
+    elif dataset_name == 'WikiCS':
+        dataset = WikiCS(root='dataset/' + dataset_name, transform=T.NormalizeFeatures())
     else:
         dataset = Planetoid(root='dataset/' + dataset_name, name=dataset_name, transform=T.NormalizeFeatures())
     
@@ -387,14 +374,21 @@ if __name__ == "__main__":
     num_classes = dataset.num_classes
     
     # Load train/valid/test split for non-Citation datas
-    if args.dataset in ['Computers', 'Photo','Physics']:
+    if dataset_name in ['Computers', 'Photo','Physics']:
         with open(config_path, 'rb') as f:
             loaded_indices_dict = pickle.load(f)
             data = set_masks_from_indices(data, loaded_indices_dict, device)
-            
-    train_mask = data.train_mask
-    val_mask = data.val_mask
-    test_mask = data.test_mask
+           
+    elif dataset_name == 'WikiCS':
+        train_mask = data.train_mask[:, 0]
+        val_mask = data.val_mask[:, 0]
+        test_mask = data.test_mask
+       
+    else: 
+        train_mask = data.train_mask
+        val_mask = data.val_mask
+        test_mask = data.test_mask
+       
     if verbose:
         train_size = train_mask.sum().item()
         val_size = val_mask.sum().item()
@@ -440,15 +434,14 @@ if __name__ == "__main__":
         'first_hop': [], 'second_hop': [], 'accu': []
     }
     
-    total_time = 0
+    
     # Main loop for PC-Winter algorithm with online Pre-order traversal
     for i in range(num_perm):
-        iteration_start_time = time.time()
         np.random.shuffle(labeled_node_list) # Randomize order of labeled nodes
         cur_labeled_node_list = [] 
         pre_performance = 0
         
-        for labeled_node in labeled_node_list:
+        for labeled_node in tqdm(labeled_node_list, desc=f'Permutation {i + 1}', unit='node):
             sample_value_dict_copy = copy.deepcopy(sample_value_dict)
 
             # Process 1-hop neighbors
@@ -458,15 +451,15 @@ if __name__ == "__main__":
             # Keep the precedence constraint between labeled and 1-hop neighbor by putting labeled node front
             hop_1_list.remove(labeled_node)
             hop_1_list.insert(0, labeled_node)
-            print ('hop_1_list before truncation', len(hop_1_list), 'group_trunc_ratio_hop_1:', group_trunc_ratio_hop_1)
+            # print ('hop_1_list before truncation', len(hop_1_list), 'group_trunc_ratio_hop_1:', group_trunc_ratio_hop_1)
             truncate_length = int(np.ceil((len(hop_1_list) - 1) * (1- group_trunc_ratio_hop_1))) + 1
             truncate_length = min(truncate_length, len(hop_1_list))
             hop_1_list = hop_1_list[:truncate_length]
-            print ('hop_1_list after truncation', len(hop_1_list) )
+            # print ('hop_1_list after truncation', len(hop_1_list) )
             
-            print ('labeled_node iteration:', i)
-            print ('current target labeled_node:',  cur_labeled_node_list, '=>', labeled_node)
-            print ('hop_1_list ', hop_1_list )
+            # print ('labeled_node iteration:', i)
+            # print ('current target labeled_node:',  cur_labeled_node_list, '=>', labeled_node)
+            # print ('hop_1_list ', hop_1_list )
             
             for player_hop_1 in hop_1_list:
                 # Process 2-hop neighbors
@@ -477,11 +470,11 @@ if __name__ == "__main__":
                 # keep the precedence constraint between 1-hop neighbor and 2-hop neighbor 
                 hop_2_list.remove(player_hop_1)
                 hop_2_list.insert(0, player_hop_1)
-                print ('hop_2_list before truncation', len(hop_2_list), 'group_trunc_ratio_hop_2:', group_trunc_ratio_hop_2)
+                # print ('hop_2_list before truncation', len(hop_2_list), 'group_trunc_ratio_hop_2:', group_trunc_ratio_hop_2)
                 truncate_length = int(np.ceil((len(hop_2_list) - 1) * (1-group_trunc_ratio_hop_2))) + 1
                 truncate_length = min(truncate_length, len(hop_2_list))
                 hop_2_list = hop_2_list[:truncate_length]
-                print ('hop_2_list after truncation', len(hop_2_list) )
+                # print ('hop_2_list after truncation', len(hop_2_list) )
                 
                 for player_hop_2 in hop_2_list:
                     cur_hop_2_list += [player_hop_2]
@@ -505,7 +498,7 @@ if __name__ == "__main__":
                     perf_dict['second_hop'] += [player_hop_2]
                     perf_dict['accu'] += [val_acc]         
                     
-                    print('pre_performance ',pre_performance  ,'val_acc', val_acc)
+                    # print('pre_performance ',pre_performance  ,'val_acc', val_acc)
 
             # Update labeled node list and compute full group accuracy
             cur_labeled_node_list += [labeled_node]
@@ -514,7 +507,7 @@ if __name__ == "__main__":
             val_acc = evaluate_retrain_model(MLP, dataset.num_features, dataset.num_classes, \
                                         ind_train_features, ind_train_labels, val_features, val_labels, device)
             pre_performance = val_acc
-            print('full group acc:', val_acc)
+            # print('full group acc:', val_acc)
         
     # Save results
     with open(f"value/{dataset_name}_{seed}_{num_perm}_{label_trunc_ratio}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value.pkl", "wb") as f:
