@@ -94,6 +94,7 @@ def get_subgraph_data(data, mask):
     sub_data = Data(x=data.x, edge_index=sub_edge_index, y=data.y, test_mask=test_mask, val_mask=val_mask)
     return sub_data
 
+
 if __name__ == '__main__':
     # Experimental parameters
     dataset_name = 'Cora'
@@ -103,7 +104,7 @@ if __name__ == '__main__':
 
     directory = 'value/'
     pattern = re.compile(
-    rf'^{dataset_name}_(\d+)_{num_perm}_0_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value\.pkl$'
+    rf'^{dataset_name}_(\d+)_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value\.pkl$'
 )
     # Find matching files for PC-Winter results
     ratio = 3
