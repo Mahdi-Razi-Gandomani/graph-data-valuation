@@ -151,20 +151,25 @@ if __name__ == '__main__':
     unlabeled_win = torch.tensor(unlabled_win_df['key'].values)
     unlabeled_win_value = unlabled_win_df['value'].values
     
-    # Load and preprocess the dataset
-    if dataset_name == 'WikiCS':
-        dataset = WikiCS(root='dataset/' + dataset_name, transform=T.NormalizeFeatures())
-    else:
-        dataset = Planetoid(root='dataset/' + dataset_name, name=dataset_name, transform=T.NormalizeFeatures())
-        
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # Load dataset
+    dataset_loaders = {
+        'WikiCS': lambda: WikiCS(root='dataset/WikiCS', transform=T.NormalizeFeatures()),
+        'Cora': lambda: Planetoid(root='dataset/Cora', name='Cora', transform=T.NormalizeFeatures()),
+        'Citeseer': lambda: Planetoid(root='dataset/Citeseer', name='Citeseer', transform=T.NormalizeFeatures()),
+        'Pubmed': lambda: Planetoid(root='dataset/Pubmed', name='Pubmed', transform=T.NormalizeFeatures()),
+    }
+
+    if dataset_name not in dataset_loaders:
+        raise ValueError(f"Unsupported dataset: {dataset_name}. Supported datasets are {list(dataset_loaders.keys())}")
+
+    dataset = dataset_loaders[dataset_name]()
     data = dataset[0].to(device)
-    
+
     if dataset_name == 'WikiCS':
-        train_mask = data.train_mask[:, 0]
-        val_mask = data.val_mask[:, 0]
-        test_mask = data.test_mask
-       
+        wiki_split = 0
+        train_mask = data.train_mask[:, wiki_split]
+        val_mask = data.val_mask[:, wiki_split]
+        test_mask = data.test_mask 
     else: 
         train_mask = data.train_mask
         val_mask = data.val_mask
@@ -211,7 +216,7 @@ if __name__ == '__main__':
     val_acc_list += [val_acc]
     
     # Iteratively drop nodes and evaluate
-    for j in tqdm(range(1, drop_num), desc='Dropping nodes', unit='node):
+    for j in tqdm(range(1, drop_num), desc='Dropping nodes'):
         cur_player = node_list[j-1]
         # print('cur_player: ',cur_player)
         cur_node_list = node_list[:j]
