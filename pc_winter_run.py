@@ -456,4 +456,5 @@ if __name__ == "__main__":
         pickle.dump(sample_counter_dict, f)
     with open(os.path.join(path, f'{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_perf.pkl'), "wb") as f:
         pickle.dump(perf_dict, f)
-        
+
+    print('Done!')
