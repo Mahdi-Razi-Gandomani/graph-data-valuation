@@ -176,6 +176,7 @@ if __name__ == '__main__':
         test_mask = data.test_mask
     
     # Print dataset sizes
+    print(f'Dataset: {dataset_name}')
     print(f"Training size: {train_mask.sum().item()}")
     print(f"Validation size: {val_mask.sum().item()}")
     print(f"Test size: {test_mask.sum().item()}")
