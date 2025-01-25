@@ -245,6 +245,8 @@ if __name__ == '__main__':
     os.makedirs(path, exist_ok=True)
     with open(os.path.join(path, f'node_drop_large_winter_value_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_{counter}_{dataset_name}_test.pkl'), 'wb') as file:
         pickle.dump(win_acc, file)
-    
+
     with open(os.path.join(path, f'node_drop_large_winter_value_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_{counter}_{dataset_name}_vali.pkl'), 'wb') as file:
         pickle.dump(val_acc_list, file)
+        
+    print('Done!')
