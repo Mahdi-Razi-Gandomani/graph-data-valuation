@@ -41,6 +41,7 @@ from torch_geometric.nn.conv.gcn_conv import gcn_norm
 from torch_geometric.typing import Adj, OptTensor, SparseTensor
 from torch_geometric.utils import spmm
 from tqdm import tqdm
+import os
 
 
 class SGConvNoWeight(MessagePassing):
@@ -447,11 +448,12 @@ if __name__ == "__main__":
             pre_performance = val_acc
             # print('full group acc:', val_acc)
         
-    # Save results
-    with open(f"value/{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value.pkl", "wb") as f:
+    path = 'value/'
+    os.makedirs(path, exist_ok=True)
+    with open(os.path.join(path, f'{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value.pkl'), "wb") as f:
         pickle.dump(sample_value_dict, f) 
-    with open(f"value/{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value_count.pkl", "wb") as f:
-        pickle.dump( sample_counter_dict, f)
-    with open(f"value/{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_perf.pkl", "wb") as f:
+    with open(os.path.join(path, f'{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value_count.pkl'), "wb") as f:
+        pickle.dump(sample_counter_dict, f)
+    with open(os.path.join(path, f'{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_perf.pkl'), "wb") as f:
         pickle.dump(perf_dict, f)
         
