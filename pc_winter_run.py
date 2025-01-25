@@ -130,11 +130,9 @@ def adjacency_to_edge_list(adj_matrix):
     edge_index = torch.stack([source, target], dim=0)
     return edge_index
 
-
 def stack_torch_tensors(input_tensors):
     unrolled = [input_tensors[k].view(-1,1) for k in range(len(input_tensors))]
     return torch.cat(unrolled)
-
 
 def generate_features_and_labels_ind(cur_hop_1_list, cur_hop_2_list, cur_labeled_list, target_node, node_map, ind_edge_index, data, device):
 
@@ -177,7 +175,6 @@ def generate_features_and_labels_ind(cur_hop_1_list, cur_hop_2_list, cur_labeled
 
     return train_features, train_labels
 
-
 def evaluate_retrain_model(model_class, num_features, num_classes, train_features, train_labels, val_features, val_labels, device, num_iter=200, lr=0.01, weight_decay=5e-4):
     
     """
@@ -194,7 +191,6 @@ def evaluate_retrain_model(model_class, num_features, num_classes, train_feature
     # Calculate the accuracy of the model
     val_acc = (predictions.argmax(dim=1) == val_labels).float().mean().item()
     return val_acc
-
 
 def generate_maps(train_idx_list, edge_index):
 
@@ -246,7 +242,6 @@ def generate_maps(train_idx_list, edge_index):
 
     return labeled_to_player_map, sample_value_dict, sample_counter_dict
 
-
 def get_subgraph_data(data_edge_index, mask):
     
     """
@@ -265,8 +260,7 @@ def get_subgraph_data(data_edge_index, mask):
 
     sub_edge_index = edge_index[:, edge_mask]
     return sub_edge_index
-    
-    
+      
 def propagate_features(edge_index, node_features):
     """SGC propagation of node features using the given edge_index."""
     A = torch.zeros((node_features.size(0), node_features.size(0)), device=device)
@@ -297,10 +291,8 @@ if __name__ == "__main__":
 
     # Set up dataset and model parameters
     dataset_name = args.dataset
-    # num_hops = args.num_hops
     seed = args.seed
     num_perm = args.num_perm
-    # label_trunc_ratio = args.label_trunc_ratio
     group_trunc_ratio_hop_1 = args.group_trunc_ratio_hop_1
     group_trunc_ratio_hop_2 = args.group_trunc_ratio_hop_2
     verbose = args.verbose
@@ -381,7 +373,6 @@ if __name__ == "__main__":
         'first_hop': [], 'second_hop': [], 'accu': []
     }
     
-    
     # Main loop for PC-Winter algorithm with online Pre-order traversal
     for i in range(num_perm):
         np.random.shuffle(labeled_node_list) # Randomize order of labeled nodes
@@ -390,7 +381,6 @@ if __name__ == "__main__":
         
         for labeled_node in tqdm(labeled_node_list, desc=f'Perm {i + 1}/{num_perm}', unit='node'):
             sample_value_dict_copy = copy.deepcopy(sample_value_dict)
-
             # Process 1-hop neighbors
             cur_hop_1_list = []
             hop_1_list = list(labeled_to_player_map [labeled_node].keys())
