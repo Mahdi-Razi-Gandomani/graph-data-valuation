@@ -178,7 +178,6 @@ def generate_features_and_labels_ind(cur_hop_1_list, cur_hop_2_list, cur_labeled
     return train_features, train_labels
 
 
-
 def evaluate_retrain_model(model_class, num_features, num_classes, train_features, train_labels, val_features, val_labels, device, num_iter=200, lr=0.01, weight_decay=5e-4):
     
     """
@@ -210,7 +209,6 @@ def generate_maps(train_idx_list, num_hops, edge_index):
     [labeled][hop_1_node][hop_2_node] is a label' node's 2-distance neighbor;
     Here the key index is the node index in the graph. 
     """
-
 
     labeled_to_player_map = {}
     sample_value_dict = {}
@@ -307,16 +305,9 @@ if __name__ == "__main__":
     group_trunc_ratio_hop_2 = args.group_trunc_ratio_hop_2
     verbose = args.verbose
 
-    if dataset_name in dataset_params:
-        params = dataset_params[dataset_name]
-        num_epochs = params['num_epochs']
-        lr = params['lr']
-        weight_decay = params['weight_decay']
-    else:
-        num_epochs = 200
-        lr = 0.01
-        weight_decay = 5e-4
-    
+    num_epochs = 200
+    lr = 0.01
+    weight_decay = 5e-4
     
     np.random.seed(seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -330,8 +321,9 @@ if __name__ == "__main__":
     num_classes = dataset.num_classes
            
     if dataset_name == 'WikiCS':
-        train_mask = data.train_mask[:, 0]
-        val_mask = data.val_mask[:, 0]
+        wiki_split = 0
+        train_mask = data.train_mask[:, wiki_split]
+        val_mask = data.val_mask[:, wiki_split]
         test_mask = data.test_mask    
     else: 
         train_mask = data.train_mask
