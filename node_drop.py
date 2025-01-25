@@ -163,6 +163,7 @@ if __name__ == '__main__':
         raise ValueError(f"Unsupported dataset: {dataset_name}. Supported datasets are {list(dataset_loaders.keys())}")
 
     dataset = dataset_loaders[dataset_name]()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data = dataset[0].to(device)
 
     if dataset_name == 'WikiCS':
