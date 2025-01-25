@@ -196,7 +196,7 @@ def evaluate_retrain_model(model_class, num_features, num_classes, train_feature
     return val_acc
 
 
-def generate_maps(train_idx_list, num_hops, edge_index):
+def generate_maps(train_idx_list, edge_index):
 
     """
     This function generates the necessary data structures for efficient computation
@@ -280,10 +280,10 @@ def propagate_features(edge_index, node_features):
 def parse_args():
     parser = argparse.ArgumentParser(description="Network")
     parser.add_argument('--dataset', default='Cora', help='Input dataset.')
-    parser.add_argument('--num_hops', type=int, default=2, help='Number of hops.')
+    # parser.add_argument('--num_hops', type=int, default=2, help='Number of hops.')
     parser.add_argument('--seed', type=int, default=0, help='Random seed for permutation.')
     parser.add_argument('--num_perm', type=int, default=10, help='Number of permutations.')
-    parser.add_argument('--label_trunc_ratio', type=float, default=0, help='Label trunc ratio')
+    # parser.add_argument('--label_trunc_ratio', type=float, default=0, help='Label trunc ratio')
     parser.add_argument('--group_trunc_ratio_hop_1', type=float, default=0.5, help='Hop 1 Group trunc ratio')
     parser.add_argument('--group_trunc_ratio_hop_2', type=float, default=0.7, help='Hop 2 Group trunc ratio.')
     parser.add_argument( '--verbose', type = bool, default = True)
@@ -297,10 +297,10 @@ if __name__ == "__main__":
 
     # Set up dataset and model parameters
     dataset_name = args.dataset
-    num_hops = args.num_hops
+    # num_hops = args.num_hops
     seed = args.seed
     num_perm = args.num_perm
-    label_trunc_ratio = args.label_trunc_ratio
+    # label_trunc_ratio = args.label_trunc_ratio
     group_trunc_ratio_hop_1 = args.group_trunc_ratio_hop_1
     group_trunc_ratio_hop_2 = args.group_trunc_ratio_hop_2
     verbose = args.verbose
@@ -367,7 +367,7 @@ if __name__ == "__main__":
     train_idx = torch.nonzero(train_mask).cpu().numpy().flatten()
     labeled_node_list = list(train_idx)
     labeled_to_player_map, sample_value_dict, sample_counter_dict = \
-            generate_maps( list(train_idx), num_hops, inductive_edge_index)
+            generate_maps( list(train_idx), inductive_edge_index)
     
     #Store the performance of different seed, permutation index, added new contribution path and accrued performace
     perf_dict = {
@@ -382,7 +382,7 @@ if __name__ == "__main__":
         cur_labeled_node_list = [] 
         pre_performance = 0
         
-        for labeled_node in tqdm(labeled_node_list, desc=f'Permutation {i + 1}', unit='node'):
+        for labeled_node in tqdm(labeled_node_list, desc=f'Perm {i + 1}/{num_perm}', unit='node'):
             sample_value_dict_copy = copy.deepcopy(sample_value_dict)
 
             # Process 1-hop neighbors
@@ -451,10 +451,10 @@ if __name__ == "__main__":
             # print('full group acc:', val_acc)
         
     # Save results
-    with open(f"value/{dataset_name}_{seed}_{num_perm}_{label_trunc_ratio}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value.pkl", "wb") as f:
+    with open(f"value/{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value.pkl", "wb") as f:
         pickle.dump(sample_value_dict, f) 
-    with open(f"value/{dataset_name}_{seed}_{num_perm}_{label_trunc_ratio}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value_count.pkl", "wb") as f:
+    with open(f"value/{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value_count.pkl", "wb") as f:
         pickle.dump( sample_counter_dict, f)
-    with open(f"value/{dataset_name}_{seed}_{num_perm}_{label_trunc_ratio}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_perf.pkl", "wb") as f:
+    with open(f"value/{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_perf.pkl", "wb") as f:
         pickle.dump(perf_dict, f)
         
