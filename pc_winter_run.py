@@ -311,14 +311,20 @@ if __name__ == "__main__":
     
     np.random.seed(seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+   
     # Load dataset
-    if dataset_name == 'WikiCS':
-        dataset = WikiCS(root='dataset/' + dataset_name, transform=T.NormalizeFeatures())
-    else:
-        dataset = Planetoid(root='dataset/' + dataset_name, name=dataset_name, transform=T.NormalizeFeatures())
-    
+    dataset_loaders = {
+        'WikiCS': lambda: WikiCS(root='dataset/WikiCS', transform=T.NormalizeFeatures()),
+        'Cora': lambda: Planetoid(root='dataset/Cora', name='Cora', transform=T.NormalizeFeatures()),
+        'Citeseer': lambda: Planetoid(root='dataset/Citeseer', name='Citeseer', transform=T.NormalizeFeatures()),
+        'Pubmed': lambda: Planetoid(root='dataset/Pubmed', name='Pubmed', transform=T.NormalizeFeatures()),
+    }
+
+    if dataset_name not in dataset_loaders:
+        raise ValueError(f"Unsupported dataset: {dataset_name}. Supported datasets are {list(dataset_loaders.keys())}")
+
+    dataset = dataset_loaders[dataset_name]()
     data = dataset[0].to(device)
-    num_classes = dataset.num_classes
            
     if dataset_name == 'WikiCS':
         wiki_split = 0
