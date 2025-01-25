@@ -332,6 +332,7 @@ if __name__ == "__main__":
         train_size = train_mask.sum().item()
         val_size = val_mask.sum().item()
         test_size = test_mask.sum().item()
+        print(f'Dataset: {dataset_name}')
         print(f"Train Size: {train_size}")
         print(f"Validation Size: {val_size}")
         print(f"Test Size: {test_size}")
