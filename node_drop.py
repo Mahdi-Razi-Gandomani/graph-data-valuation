@@ -107,7 +107,7 @@ if __name__ == '__main__':
     rf'^{dataset_name}_(\d+)_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value\.pkl$'
 )
     # Find matching files for PC-Winter results
-    ratio = 3
+    ratio = 4
     matching_files = []
     for filename in os.listdir(directory):
         if pattern.match(filename):
