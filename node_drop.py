@@ -170,6 +170,7 @@ if __name__ == '__main__':
         wiki_split = 0
         data.train_mask = data.train_mask[:, wiki_split]
         data.val_mask = data.val_mask[:, wiki_split] 
+        data.stopping_mask = data.stopping_mask[:, wiki_split] 
     
     train_mask = data.train_mask
     val_mask = data.val_mask
