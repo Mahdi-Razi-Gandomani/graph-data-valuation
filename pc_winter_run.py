@@ -321,13 +321,12 @@ if __name__ == "__main__":
            
     if dataset_name == 'WikiCS':
         wiki_split = 0
-        train_mask = data.train_mask[:, wiki_split]
-        val_mask = data.val_mask[:, wiki_split]
-        test_mask = data.test_mask    
-    else: 
-        train_mask = data.train_mask
-        val_mask = data.val_mask
-        test_mask = data.test_mask
+        data.train_mask = data.train_mask[:, wiki_split]
+        data.val_mask = data.val_mask[:, wiki_split] 
+    
+    train_mask = data.train_mask
+    val_mask = data.val_mask
+    test_mask = data.test_mask
        
     if verbose:
         train_size = train_mask.sum().item()
