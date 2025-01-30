@@ -23,8 +23,6 @@ import os
 import re
 from torch_geometric.data import Data
 from tqdm import tqdm
-from gcn import GCN
-from gcn_train import train_and_eval
 from torch_geometric.utils import degree
 import warnings
 warnings.simplefilter(action='ignore', category=Warning)
@@ -256,14 +254,10 @@ if __name__ == '__main__':
     data_copy = data_copy.to(device)
     data_copy.edge_index = data_copy.edge_index[:,  indu_mask]
     
-    if dataset_name == 'WikiCS':
-        model = GCN(data_copy, dataset.num_features, hidden_dim, dataset.num_classes, n_hidden_layers, activation=F.relu, dropout=dropout)
-        val_acc, test_acc = train_and_eval(data_copy, model, patience, lr, weight_decay, device)
-    else:
-        model = SGCNet(num_features=dataset.num_features, num_classes=dataset.num_classes).to(device)
-        model.fit(data_copy)
-        test_acc = model.predict(test_data)
-        val_acc = model.predict_valid(val_data )
+    model = SGCNet(num_features=dataset.num_features, num_classes=dataset.num_classes).to(device)
+    model.fit(data_copy)
+    test_acc = model.predict(test_data)
+    val_acc = model.predict_valid(val_data )
 
     win_acc  += [test_acc]
     val_acc_list += [val_acc]
@@ -295,14 +289,10 @@ if __name__ == '__main__':
           data_copy.val_mask = val_mask
           data_copy.train_mask = train_mask
     
-        if dataset_name == 'WikiCS':
-            model = GCN(data_copy, dataset.num_features, hidden_dim, dataset.num_classes, n_hidden_layers, activation=F.relu, dropout=dropout)
-            val_acc, test_acc = train_and_eval(data_copy, model, patience, lr, weight_decay, device)
-        else:
-            model = SGCNet(num_features=dataset.num_features, num_classes=dataset.num_classes).to(device)
-            model.fit(data_copy)
-            test_acc = model.predict(test_data)
-            val_acc = model.predict_valid(val_data)
+        model = SGCNet(num_features=dataset.num_features, num_classes=dataset.num_classes).to(device)
+        model.fit(data_copy)
+        test_acc = model.predict(test_data)
+        val_acc = model.predict_valid(val_data)
 
         win_acc  += [test_acc]
         val_acc_list += [val_acc]
