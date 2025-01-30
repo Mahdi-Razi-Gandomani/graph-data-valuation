@@ -23,6 +23,8 @@ import os
 import re
 from torch_geometric.data import Data
 from tqdm import tqdm
+from gcn import GCN
+from gcn_train import train_and_eval
 import warnings
 warnings.simplefilter(action='ignore', category=Warning)
 
@@ -165,6 +167,15 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data = dataset[0].to(device)
 
+    # Hyperparameters
+    num_epochs = 1000
+    lr = 0.02
+    weight_decay = 5e-4
+    n_hidden_layers = 1
+    hidden_dim =  33
+    patience = 100
+    dropout = 0.25
+
     if dataset_name == 'WikiCS':
         split_idx = 0
         data.train_mask = data.train_mask[:, split_idx]
@@ -209,11 +220,16 @@ if __name__ == '__main__':
     data_copy = data_copy.to(device)
     data_copy.edge_index = data_copy.edge_index[:,  indu_mask]
     
-    model = SGCNet(num_features=dataset.num_features, num_classes=dataset.num_classes).to(device)
-    model.fit(data_copy)
-    test_acc = model.predict(test_data)
-    val_acc = model.predict_valid(val_data )
-    win_acc  +=[test_acc]
+    if dataset_name == 'WikiCS':
+        model = GCN(data_copy, dataset.num_features, hidden_dim, dataset.num_classes, n_hidden_layers, activation=F.relu, dropout=dropout)
+        val_acc, test_acc = train_and_eval(data_copy, model, patience, lr, weight_decay, device)
+    else:
+        model = SGCNet(num_features=dataset.num_features, num_classes=dataset.num_classes).to(device)
+        model.fit(data_copy)
+        test_acc = model.predict(test_data)
+        val_acc = model.predict_valid(val_data )
+
+    win_acc  += [test_acc]
     val_acc_list += [val_acc]
     
     # Iteratively drop nodes and evaluate
@@ -232,11 +248,16 @@ if __name__ == '__main__':
         data_copy = data_copy.to(device)
         data_copy.edge_index = data_copy.edge_index[:, edge_mask]
     
-        model = SGCNet(num_features=dataset.num_features, num_classes=dataset.num_classes).to(device)
-        model.fit(data_copy)
-        test_acc = model.predict(test_data)
-        val_acc = model.predict_valid(val_data )
-        win_acc  +=[test_acc]
+        if dataset_name == 'WikiCS':
+            model = GCN(data_copy, dataset.num_features, hidden_dim, dataset.num_classes, n_hidden_layers, activation=F.relu, dropout=dropout)
+            val_acc, test_acc = train_and_eval(data_copy, model, patience, lr, weight_decay, device)
+        else:
+            model = SGCNet(num_features=dataset.num_features, num_classes=dataset.num_classes).to(device)
+            model.fit(data_copy)
+            test_acc = model.predict(test_data)
+            val_acc = model.predict_valid(val_data)
+
+        win_acc  += [test_acc]
         val_acc_list += [val_acc]
             
     # Save results
