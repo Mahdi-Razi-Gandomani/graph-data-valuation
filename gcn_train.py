@@ -70,5 +70,9 @@ def train_and_eval(data, model, stopping_patience, lr, weight_decay, device):
         model, data.x, data.edge_index, data.y,
         data.val_mask
     )
+    test_acc = evaluate(
+        model, data.x, data.edge_index, data.y,
+        data.test_mask
+    )
 
-    return val_acc
+    return val_acc, test_acc
