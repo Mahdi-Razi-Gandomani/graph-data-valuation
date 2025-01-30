@@ -7,7 +7,7 @@ It includes the following main components:
 3. PC-Winter value aggregation and node ranking
 4. Node dropping experiment to evaluate the effectiveness of the valuation
 """
-
+import numpy as np
 import pickle
 import collections
 import torch
@@ -25,6 +25,7 @@ from torch_geometric.data import Data
 from tqdm import tqdm
 from gcn import GCN
 from gcn_train import train_and_eval
+from torch_geometric.utils import degree
 import warnings
 warnings.simplefilter(action='ignore', category=Warning)
 
@@ -130,28 +131,50 @@ if __name__ == '__main__':
     # Average the values
     for key, values in results.items():
         results[key] = sum(values) / (len(values) * num_perm)
-    
+   
     # Convert to DataFrame
     data = [{'key1': k1, 'key2': k2, 'key3': k3, 'value': v} for (k1, k2, k3), v in results.items()]
     win_df = pd.DataFrame(data)
-    
-    # Aggregate values for different hop levels
-    win_df_11 = pd.DataFrame(win_df [win_df['key2'].isin(win_df['key1']) == False] .groupby('key2').value.sum().sort_values()).reset_index()
-    win_df_11.columns= ['key', 'value']
-    hop_1_list = win_df [win_df['key2'].isin(win_df['key1']) == False]['key2'].unique()
-    win_df_12 = pd.DataFrame(win_df [(win_df['key3'] != win_df['key2'])&(win_df['key3'].isin(hop_1_list) )].groupby('key3').value.sum().sort_values()).reset_index()
-    win_df_12.columns= ['key', 'value']
-    
-    win_df_1 =  pd.DataFrame(pd.concat([win_df_11, win_df_12]).groupby('key').value.sum().sort_values()).reset_index()
-    win_df_2 = pd.DataFrame(win_df [(win_df['key3'].isin(win_df['key2']) == False)&(win_df['key3'].isin(win_df['key1']) == False)] .groupby('key3').value.sum().sort_values()).reset_index()
-    win_df_2.columns= ['key', 'value']
-    
-    # Combine and sort unlabeled nodes
-    unlabled_win_df = pd.concat([win_df_1,win_df_2])
-    unlabled_win_df = unlabled_win_df.sort_values('value',ascending= False)
-    unlabeled_win = torch.tensor(unlabled_win_df['key'].values)
-    unlabeled_win_value = unlabled_win_df['value'].values
-    
+
+    # win values for labeled or unlabeled nodes
+    labeled_drop = False
+   
+    if (labeled_drop == False):
+      # Aggregate values for different hop levels
+      win_df_11 = pd.DataFrame(win_df [win_df['key2'].isin(win_df['key1']) == False] .groupby('key2').value.sum().sort_values()).reset_index()
+      win_df_11.columns= ['key', 'value']
+      hop_1_list = win_df [win_df['key2'].isin(win_df['key1']) == False]['key2'].unique()
+      win_df_12 = pd.DataFrame(win_df [(win_df['key3'] != win_df['key2'])&(win_df['key3'].isin(hop_1_list) )].groupby('key3').value.sum().sort_values()).reset_index()
+      win_df_12.columns= ['key', 'value']
+      
+      win_df_1 =  pd.DataFrame(pd.concat([win_df_11, win_df_12]).groupby('key').value.sum().sort_values()).reset_index()
+      win_df_2 = pd.DataFrame(win_df [(win_df['key3'].isin(win_df['key2']) == False)&(win_df['key3'].isin(win_df['key1']) == False)] .groupby('key3').value.sum().sort_values()).reset_index()
+      win_df_2.columns= ['key', 'value']
+      
+      # Combine and sort unlabeled nodes
+      win_df = pd.concat([win_df_1,win_df_2])
+      win_df = win_df.sort_values('value',ascending= False)
+      win = torch.tensor(win_df['key'].values)
+
+    else:
+      grouped = win_df.groupby('key1')['value'].sum().reset_index()
+      # Create a mask to filter rows where k1 is in k2 or k3
+      mask = (
+          (win_df['key2'].isin(grouped['key1']) & (win_df['key1'] != win_df['key2'])) |
+          (win_df['key3'].isin(grouped['key1']) & (win_df['key1'] != win_df['key3']))
+      )
+      filtered_df = win_df[mask]
+      # Add the value of those rows to the corresponding k1 group
+      for i, row in filtered_df.iterrows():
+          if row['key2'] in grouped['key1'].values and row['key1'] != row['key2']:
+              grouped.loc[grouped['key1'] == row['key2'], 'value'] += row['value']
+          if row['key3'] in grouped['key1'].values and row['key1'] != row['key3']:
+              grouped.loc[grouped['key1'] == row['key3'], 'value'] += row['value']
+
+      win_df = grouped.sort_values('value',ascending= False)
+      win = torch.tensor(win_df['key1'].values)
+
+
     # Load dataset
     dataset_loaders = {
         'WikiCS': lambda: WikiCS(root='dataset/WikiCS', transform=T.NormalizeFeatures()),
@@ -210,10 +233,23 @@ if __name__ == '__main__':
     val_data = get_subgraph_data(data, data.val_mask)
     
     # Node dropping experiment
+    method = 'win'
+
+    if method == 'win':
+      node_list = win.cpu().numpy()
+
+    elif method == 'degree':
+      degs = degree(data.edge_index[1], num_nodes=data.num_nodes)
+      win_degrees = degs[win]
+      node_list  = win[torch.argsort(win_degrees, descending=True)].tolist()
+
+    elif method == 'random':
+      node_list = win.cpu().numpy()
+      np.random.shuffle(node_list)
+    
+    drop_num = len(node_list)+1
     win_acc = []
     val_acc_list = []
-    node_list = unlabeled_win.cpu().numpy()
-    drop_num = len(node_list)+1
     
     # Initial model training and evaluation
     data_copy = data.clone()
@@ -247,6 +283,17 @@ if __name__ == '__main__':
         data_copy = data.clone()
         data_copy = data_copy.to(device)
         data_copy.edge_index = data_copy.edge_index[:, edge_mask]
+
+        if labeled_drop:
+          test_mask = data.test_mask.clone()
+          val_mask = data.val_mask.clone()
+          for node in cur_node_list:
+              test_mask[node] = False
+              val_mask[node] = False
+              train_mask[node]=False
+          data_copy.test_mask = test_mask
+          data_copy.val_mask = val_mask
+          data_copy.train_mask = train_mask
     
         if dataset_name == 'WikiCS':
             model = GCN(data_copy, dataset.num_features, hidden_dim, dataset.num_classes, n_hidden_layers, activation=F.relu, dropout=dropout)
@@ -263,10 +310,10 @@ if __name__ == '__main__':
     # Save results
     path = 'res/'
     os.makedirs(path, exist_ok=True)
-    with open(os.path.join(path, f'node_drop_large_winter_value_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_{counter}_{dataset_name}_test.pkl'), 'wb') as file:
+    with open(os.path.join(path, f'node_drop_large_{method}_{labeled_drop}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_{counter}_{dataset_name}_test.pkl'), 'wb') as file:
         pickle.dump(win_acc, file)
 
-    with open(os.path.join(path, f'node_drop_large_winter_value_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_{counter}_{dataset_name}_vali.pkl'), 'wb') as file:
+    with open(os.path.join(path, f'node_drop_large_{method}_{labeled_drop}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_{counter}_{dataset_name}_vali.pkl'), 'wb') as file:
         pickle.dump(val_acc_list, file)
         
     print('\nDone!')
