@@ -1,3 +1,4 @@
+
 """
 This script implements the PC-Winter (Precedence-Constrained Winter) algorithm for graph data valuation.
 Key features of the implementation include:
@@ -88,11 +89,20 @@ class SGConvNoWeight(MessagePassing):
 
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, output_dim):
+    def __init__(self, input_dim, output_dim, n_hidden_layers, hidden_dim, dropout):
         super(MLP, self).__init__()
-        self.layers = nn.Sequential(
-            nn.Linear(input_dim, output_dim)
-        )
+        self.layers = nn.Sequential()
+        if n_hidden_layers>0:
+            self.layers.append(nn.Linear(input_dim, hidden_dim))
+            for i in range(n_hidden_layers - 1):
+                self.layers.append(nn.Linear(hidden_dim, hidden_dim))
+                self.layers.append(nn.ReLU())
+                if dropout > 0:
+                    self.layers.append(nn.Dropout(p=dropout))
+            self.layers.append(nn.Linear(hidden_dim, output_dim))
+        else:
+            self.layers.append(nn.Linear(input_dim, output_dim))
+
         self.init_weights()
 
     def init_weights(self):
@@ -109,8 +119,10 @@ class MLP(nn.Module):
         output = self.forward(x)
         return output
 
-    def fit(self, X, y, val_X, val_y, num_iter=200, lr=0.01, weight_decay=5e-4):
+    def fit(self, X, y, val_X, val_y, num_iter, lr, weight_decay, patience):
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
+        best_val_acc = 0
+        patience_left = patience
 
         for epoch in range(num_iter):
             self.train()
@@ -119,6 +131,22 @@ class MLP(nn.Module):
             loss = F.nll_loss(output, y)
             loss.backward()
             optimizer.step()
+
+            self.eval()
+            with torch.no_grad():
+                val_pred = self(val_X).argmax(dim=1)
+                val_acc = (val_pred == val_y).float().mean().item()
+
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                patience_left = patience
+            else:
+                patience_left -= 1
+
+                if patience_left <= 0:
+                    break
+
+        return best_val_acc
 
             
 def adjacency_to_edge_list(adj_matrix):
@@ -176,7 +204,8 @@ def generate_features_and_labels_ind(cur_hop_1_list, cur_hop_2_list, cur_labeled
 
     return train_features, train_labels
 
-def evaluate_retrain_model(model_class, num_features, num_classes, train_features, train_labels, val_features, val_labels, device, num_iter=200, lr=0.01, weight_decay=5e-4):
+def evaluate_retrain_model(model_class, num_features, num_classes, n_hidden_layers, hidden_dim, dropout, 
+                           train_features, train_labels, val_features, val_labels, device, num_iter, lr, weight_decay, patience):
     
     """
     This function creates, trains, and evaluates a model on the given data.
@@ -185,12 +214,12 @@ def evaluate_retrain_model(model_class, num_features, num_classes, train_feature
     """
     
     # Create and train the model
-    model = model_class(num_features, num_classes).to(device)
-    model.fit(train_features, train_labels, val_features, val_labels, num_iter=num_iter, lr=lr, weight_decay=weight_decay)
+    model = model_class(num_features, num_classes, n_hidden_layers, hidden_dim, dropout).to(device)
+    val_acc = model.fit(train_features, train_labels, val_features, val_labels, num_iter, lr, weight_decay, patience)
     # Make predictions on the validation set
-    predictions = model(val_features)
+    # predictions = model(val_features)
     # Calculate the accuracy of the model
-    val_acc = (predictions.argmax(dim=1) == val_labels).float().mean().item()
+    # val_acc = (predictions.argmax(dim=1) == val_labels).float().mean().item()
     return val_acc
 
 def generate_maps(train_idx_list, edge_index):
@@ -298,13 +327,17 @@ if __name__ == "__main__":
     group_trunc_ratio_hop_2 = args.group_trunc_ratio_hop_2
     verbose = args.verbose
 
+    # Hyperparameters
     num_epochs = 200
-    lr = 0.01
+    lr = 0.003
     weight_decay = 5e-4
+    n_hidden_layers = 1
+    hidden_dim =  35
+    patience = 100
+    dropout = 0.25
     
     np.random.seed(seed)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-   
+    
     # Load dataset
     dataset_loaders = {
         'WikiCS': lambda: WikiCS(root='dataset/WikiCS', transform=T.NormalizeFeatures()),
@@ -317,12 +350,14 @@ if __name__ == "__main__":
         raise ValueError(f"Unsupported dataset: {dataset_name}. Supported datasets are {list(dataset_loaders.keys())}")
 
     dataset = dataset_loaders[dataset_name]()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data = dataset[0].to(device)
            
     if dataset_name == 'WikiCS':
-        wiki_split = 0
-        data.train_mask = data.train_mask[:, wiki_split]
-        data.val_mask = data.val_mask[:, wiki_split] 
+        split_idx = 0
+        data.train_mask = data.train_mask[:, split_idx]
+        data.val_mask = data.val_mask[:, split_idx] 
+        data.stopping_mask = data.stopping_mask[:, split_idx]
     
     train_mask = data.train_mask
     val_mask = data.val_mask
@@ -419,9 +454,9 @@ if __name__ == "__main__":
                     # Local propagation and performance computation
                     ind_train_features, ind_train_labels = generate_features_and_labels_ind(cur_hop_1_list, cur_hop_2_list, cur_labeled_node_list,
                                                 labeled_node, labeled_to_player_map, inductive_edge_index, data, device)
-                    val_acc = evaluate_retrain_model(MLP, dataset.num_features, dataset.num_classes, 
+                    val_acc = evaluate_retrain_model(MLP, dataset.num_features, dataset.num_classes, n_hidden_layers, hidden_dim, dropout,
                                                      ind_train_features, ind_train_labels, val_features, val_labels, 
-                                                     device, num_iter=num_epochs, lr=lr, weight_decay=weight_decay)
+                                                     device, num_epochs, lr, weight_decay, patience)
                     # calculate marginal contribution 
                     sample_value_dict[labeled_node][player_hop_1][player_hop_2] += ( val_acc - pre_performance)
                     sample_counter_dict [labeled_node][player_hop_1][player_hop_2] += 1
@@ -442,8 +477,9 @@ if __name__ == "__main__":
             cur_labeled_node_list += [labeled_node]
             ind_train_features = X_ind_propogated[ cur_labeled_node_list]
             ind_train_labels = data.y[cur_labeled_node_list]
-            val_acc = evaluate_retrain_model(MLP, dataset.num_features, dataset.num_classes, \
-                                        ind_train_features, ind_train_labels, val_features, val_labels, device)
+            val_acc = evaluate_retrain_model(MLP, dataset.num_features, dataset.num_classes, n_hidden_layers, hidden_dim, dropout,
+                                        ind_train_features, ind_train_labels, val_features, val_labels,
+                                        device, num_epochs, lr, weight_decay, patience)
             pre_performance = val_acc
             # print('full group acc:', val_acc)
         
@@ -451,9 +487,11 @@ if __name__ == "__main__":
     os.makedirs(path, exist_ok=True)
     with open(os.path.join(path, f'{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value.pkl'), "wb") as f:
         pickle.dump(sample_value_dict, f) 
+
     with open(os.path.join(path, f'{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value_count.pkl'), "wb") as f:
         pickle.dump(sample_counter_dict, f)
+
     with open(os.path.join(path, f'{dataset_name}_{seed}_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_perf.pkl'), "wb") as f:
         pickle.dump(perf_dict, f)
 
-    print('Done!')
+    print('\nDone!')
