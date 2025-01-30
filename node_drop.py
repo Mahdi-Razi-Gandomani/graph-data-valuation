@@ -107,12 +107,11 @@ if __name__ == '__main__':
     rf'^{dataset_name}_(\d+)_{num_perm}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_pc_value\.pkl$'
 )
     # Find matching files for PC-Winter results
-    ratio = 4
     matching_files = []
     for filename in os.listdir(directory):
         if pattern.match(filename):
             matching_files.append(filename)
-    filenames = matching_files[:ratio]
+    filenames = matching_files
     
     # Extract and aggregate PC-Winter values
     results = collections.defaultdict(list)
@@ -167,10 +166,10 @@ if __name__ == '__main__':
     data = dataset[0].to(device)
 
     if dataset_name == 'WikiCS':
-        wiki_split = 0
-        data.train_mask = data.train_mask[:, wiki_split]
-        data.val_mask = data.val_mask[:, wiki_split] 
-        data.stopping_mask = data.stopping_mask[:, wiki_split] 
+        split_idx = 0
+        data.train_mask = data.train_mask[:, split_idx]
+        data.val_mask = data.val_mask[:, split_idx] 
+        data.stopping_mask = data.stopping_mask[:, split_idx] 
     
     train_mask = data.train_mask
     val_mask = data.val_mask
@@ -219,7 +218,7 @@ if __name__ == '__main__':
     
     # Iteratively drop nodes and evaluate
     for j in tqdm(range(1, drop_num), desc='Dropping nodes'):
-        cur_player = node_list[j-1]
+        # cur_player = node_list[j-1]
         # print('cur_player: ',cur_player)
         cur_node_list = node_list[:j]
     
@@ -249,4 +248,4 @@ if __name__ == '__main__':
     with open(os.path.join(path, f'node_drop_large_winter_value_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_{counter}_{dataset_name}_vali.pkl'), 'wb') as file:
         pickle.dump(val_acc_list, file)
         
-    print('Done!')
+    print('\nDone!')
