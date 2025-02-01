@@ -152,17 +152,15 @@ if __name__ == '__main__':
       # Combine and sort unlabeled nodes
       win_df = pd.concat([win_df_1,win_df_2])
       win_df = win_df.sort_values('value',ascending= False)
-      win = torch.tensor(win_df['key'].values)
 
     else:
       grouped = win_df.groupby('key1')['value'].sum().reset_index()
-      # Create a mask to filter rows where k1 is in k2 or k3
       mask = (
           (win_df['key2'].isin(grouped['key1']) & (win_df['key1'] != win_df['key2'])) |
           (win_df['key3'].isin(grouped['key1']) & (win_df['key1'] != win_df['key3']))
       )
       filtered_df = win_df[mask]
-      # Add the value of those rows to the corresponding k1 group
+      # Add the value of those rows to the corresponding key1 group
       for i, row in filtered_df.iterrows():
           if row['key2'] in grouped['key1'].values and row['key1'] != row['key2']:
               grouped.loc[grouped['key1'] == row['key2'], 'value'] += row['value']
@@ -170,7 +168,9 @@ if __name__ == '__main__':
               grouped.loc[grouped['key1'] == row['key3'], 'value'] += row['value']
 
       win_df = grouped.sort_values('value',ascending= False)
-      win = torch.tensor(win_df['key1'].values)
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    win = torch.tensor(win_df['key1'].values).to(device)
 
 
     # Load dataset
@@ -185,17 +185,7 @@ if __name__ == '__main__':
         raise ValueError(f"Unsupported dataset: {dataset_name}. Supported datasets are {list(dataset_loaders.keys())}")
 
     dataset = dataset_loaders[dataset_name]()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data = dataset[0].to(device)
-
-    # Hyperparameters
-    num_epochs = 1000
-    lr = 0.02
-    weight_decay = 5e-4
-    n_hidden_layers = 1
-    hidden_dim =  33
-    patience = 100
-    dropout = 0.25
 
     if dataset_name == 'WikiCS':
         split_idx = 0
@@ -238,14 +228,14 @@ if __name__ == '__main__':
 
     elif method == 'degree':
       degs = degree(data.edge_index[1], num_nodes=data.num_nodes)
-      win_degrees = degs[win]
+      win_degrees = degs[win].to(device)
       node_list  = win[torch.argsort(win_degrees, descending=True)].tolist()
 
     elif method == 'random':
       node_list = win.cpu().numpy()
       np.random.shuffle(node_list)
     
-    drop_num = len(node_list)+1
+    drop_num = len(node_list)
     win_acc = []
     val_acc_list = []
     
@@ -298,12 +288,16 @@ if __name__ == '__main__':
         val_acc_list += [val_acc]
             
     # Save results
+    if labeled_drop:
+        type = 'labeled'
+    else:
+        type = 'unlabeled'
     path = 'res/'
     os.makedirs(path, exist_ok=True)
-    with open(os.path.join(path, f'node_drop_large_{method}_{labeled_drop}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_{counter}_{dataset_name}_test.pkl'), 'wb') as file:
+    with open(os.path.join(path, f'node_drop_large_{method}_{type}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_{counter}_{dataset_name}_test.pkl'), 'wb') as file:
         pickle.dump(win_acc, file)
 
-    with open(os.path.join(path, f'node_drop_large_{method}_{labeled_drop}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_{counter}_{dataset_name}_vali.pkl'), 'wb') as file:
+    with open(os.path.join(path, f'node_drop_large_{method}_{type}_{group_trunc_ratio_hop_1}_{group_trunc_ratio_hop_2}_{counter}_{dataset_name}_vali.pkl'), 'wb') as file:
         pickle.dump(val_acc_list, file)
         
     print('\nDone!')
