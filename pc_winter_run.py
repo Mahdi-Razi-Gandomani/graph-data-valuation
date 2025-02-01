@@ -216,10 +216,6 @@ def evaluate_retrain_model(model_class, num_features, num_classes, n_hidden_laye
     # Create and train the model
     model = model_class(num_features, num_classes, n_hidden_layers, hidden_dim, dropout).to(device)
     val_acc = model.fit(train_features, train_labels, val_features, val_labels, num_iter, lr, weight_decay, patience)
-    # Make predictions on the validation set
-    # predictions = model(val_features)
-    # Calculate the accuracy of the model
-    # val_acc = (predictions.argmax(dim=1) == val_labels).float().mean().item()
     return val_acc
 
 def generate_maps(train_idx_list, edge_index):
